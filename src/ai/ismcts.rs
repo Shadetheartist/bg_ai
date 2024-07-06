@@ -1,9 +1,12 @@
 use std::collections::HashMap;
+use std::fmt::Debug;
 use std::hash::Hash;
+use std::marker::PhantomData;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use rand::{Rng};
-use crate::{Action, GameTree, Player, State};
+use thiserror::Error;
+use crate::{Action, GameTree, Outcome, Player, State};
 use crate::ai::game_tree::score::Score;
 
 pub trait Determinable<S: State<A, P>, A: Action, P: Player> {
@@ -167,6 +170,7 @@ pub trait IsMctsAgent<P: Player> {
     >(&self, rng: &mut R, state: &S) -> Option<A>;
 }
 
+#[derive(Debug, Clone)]
 pub struct Agent<P: Player> {
     player: P,
     num_determinations: u32,
@@ -189,5 +193,123 @@ impl<P: Player> IsMctsAgent<P> for Agent<P> {
             self.num_determinations,
             self.num_simulations,
         )
+    }
+}
+
+pub trait IsMctsMtAgent<P: Player> {
+    fn player(&self) -> P;
+    fn decide<
+        R: Rng + Clone + Send,
+        S: State<A, P> + Determinable<S, A, P> + Send,
+        A: Action + Send + Sync + Eq + Hash,
+    >(&self, rng: &mut R, state: &S) -> Option<A>;
+}
+
+#[derive(Debug, Clone)]
+pub struct MtAgent<P: Player> {
+    pub player: P,
+    pub num_determinations: u32,
+    pub num_simulations: u32,
+}
+
+impl<P: Player> IsMctsMtAgent<P> for MtAgent<P> {
+    fn player(&self) -> P {
+        self.player
+    }
+
+    fn decide<
+        R: Rng + Clone + Send,
+        S: State<A, P> + Determinable<S, A, P> + Send,
+        A: Action + Send + Sync + Eq + Hash,
+    >(&self, rng: &mut R, state: &S) -> Option<A> {
+        ismcts(
+            state,
+            rng,
+            self.num_determinations,
+            self.num_simulations,
+        )
+    }
+}
+
+
+#[derive(Error, Debug)]
+pub enum MultithreadedInformationSetGameError<A: Action + Debug, P: Player + Debug> {
+    #[error("there is no agent mapped to player {0}")]
+    NoAgentForPlayer(P),
+
+    #[error("agent {0} was unable to decide what to do")]
+    AgentDecisionError(MtAgent<P>),
+
+    #[error("unable to apply action {0}")]
+    ActionApplicationError(A)
+}
+
+pub struct MultithreadedInformationSetGame<R, S, A, P>
+    where
+        R: Rng + Clone + Send,
+        S: State<A, P> + Determinable<S, A, P> + Send,
+        A: Action + Send + Sync + Eq + Hash,
+        P: Player + Send + Sync,
+{
+    pub state: S,
+    pub agents: HashMap<P, MtAgent<P>>,
+    pub rng: R,
+    _phantom_a: PhantomData<A>
+}
+
+impl<R, S, A, P> MultithreadedInformationSetGame<R, S, A, P>
+    where
+        R: Rng + Clone + Send,
+        S: State<A, P> + Determinable<S, A, P> + Send,
+        A: Action + Send + Sync + Eq + Hash + Debug,
+        P: Player + Send + Sync + Debug,
+{
+    pub fn new(rng: R, state: S, agents: HashMap<P, MtAgent<P>>) -> Self {
+        Self {
+            state,
+            agents,
+            rng,
+            _phantom_a: Default::default(),
+        }
+    }
+
+    pub fn run(&mut self) -> Result<(), MultithreadedInformationSetGameError<A, P>> {
+        loop {
+            if self.state.outcome().is_some() {
+                break;
+            }
+
+            self.step()?;
+        }
+
+        Ok(())
+    }
+
+    pub fn step(&mut self) -> Result<(), MultithreadedInformationSetGameError<A, P>> {
+        let current_player = self.state.current_player();
+
+        let Some(current_agent) = self.agents.get(&current_player) else {
+            return Err(MultithreadedInformationSetGameError::NoAgentForPlayer(current_player))
+        };
+
+        let Some(action) = current_agent.decide(&mut self.rng, &self.state) else {
+            return Err(MultithreadedInformationSetGameError::AgentDecisionError(current_agent.clone()))
+        };
+
+        if let Ok(state) = self.state.apply_action(&mut self.rng, &action) {
+            self.state = state;
+        } else {
+            return Err(MultithreadedInformationSetGameError::ActionApplicationError(action))
+        }
+
+        Ok(())
+    }
+
+    pub fn is_terminated(&self) -> bool {
+        self.state.outcome().is_some()
+    }
+
+    pub fn outcome(&self) -> Option<Outcome<P>> {
+        self.state.outcome()
     }
 }

@@ -2,7 +2,7 @@ mod ai;
 
 use std::fmt::Debug;
 use std::hash::Hash;
-use rand::Rng;
+use rand::{Rng};
 
 pub use ai::{
     mcts,
