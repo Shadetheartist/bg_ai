@@ -285,7 +285,7 @@ impl<R, S, A, P> MultithreadedInformationSetGame<R, S, A, P>
         Ok(())
     }
 
-    pub fn step(&mut self) -> Result<(), MultithreadedInformationSetGameError<A, P>> {
+    pub fn step(&mut self) -> Result<A, MultithreadedInformationSetGameError<A, P>> {
         let current_player = self.state.current_player();
 
         let Some(current_agent) = self.agents.get(&current_player) else {
@@ -302,7 +302,7 @@ impl<R, S, A, P> MultithreadedInformationSetGame<R, S, A, P>
             return Err(MultithreadedInformationSetGameError::ActionApplicationError(action))
         }
 
-        Ok(())
+        Ok(action)
     }
 
     pub fn is_terminated(&self) -> bool {
