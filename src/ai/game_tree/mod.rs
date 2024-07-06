@@ -71,7 +71,7 @@ impl<S, A, P> GameTree<S, A, P> where S: State<A, P>, A: Action, P: Player + 'st
         }
     }
 
-    pub fn search_n<R: Rng>(&mut self, rng: &mut R, iterations: usize) {
+    pub fn search_n<R: Rng>(&mut self, rng: &mut R, iterations: u32) {
         for _ in 0..iterations {
             self.search(rng);
         }

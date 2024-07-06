@@ -1,20 +1,17 @@
 mod ai;
+
 use std::fmt::Debug;
 use std::hash::Hash;
 use rand::Rng;
 
 pub use ai::{
-    mcts::mcts,
-    ismcts::{
-        ismcts,
-        ismcts_mt
-    },
+    mcts,
+    ismcts,
     game_tree::{
         GameTree,
         node::GameTreeNode,
         edge::GameTreeEdge,
     },
-    determinable::Determinable,
     random_rollout::random_rollout
 };
 

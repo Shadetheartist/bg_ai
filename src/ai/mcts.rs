@@ -6,8 +6,8 @@ pub fn mcts<
     S: State<A, P>,
     A: Action,
     P: Player,
->(game: &S, rng: &mut R, num_simulations: usize) -> Option<A> {
-    let tree = build_monte_carlo_game_tree(game, rng, num_simulations);
+>(state: &S, rng: &mut R, num_simulations: u32) -> Option<A> {
+    let tree = build_monte_carlo_game_tree(state, rng, num_simulations);
     tree.best_action().cloned()
 }
 
@@ -16,9 +16,41 @@ pub fn build_monte_carlo_game_tree<
     S: State<A, P>,
     A: Action,
     P: Player,
->(game: &S, rng: &mut R, num_simulations: usize) -> GameTree<S, A, P> {
-    let mut tree = GameTree::new(game.clone());
+>(state: &S, rng: &mut R, num_simulations: u32) -> GameTree<S, A, P> {
+    let mut tree = GameTree::new(state.clone());
     tree.search_n(rng, num_simulations);
     tree
 }
 
+
+pub trait MctsAgent<P: Player> {
+    fn player(&self) -> P;
+    fn decide<
+        R: Rng,
+        S: State<A, P>,
+        A: Action,
+    >(&self, rng: &mut R, state: &S) -> Option<A>;
+}
+
+pub struct Agent<P: Player> {
+    player: P,
+    num_simulations: u32,
+}
+
+impl<P: Player> MctsAgent<P> for Agent<P> {
+    fn player(&self) -> P {
+        self.player
+    }
+
+    fn decide<
+        R: Rng,
+        S: State<A, P>,
+        A: Action,
+    >(&self, rng: &mut R, state: &S) -> Option<A> {
+        mcts(
+            state,
+            rng,
+            self.num_simulations,
+        )
+    }
+}

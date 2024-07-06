@@ -1,5 +1,5 @@
 [package]
-name = "board-game-rs"
+name = "bg_ai"
 version = "0.1.0"
 edition = "2021"
 
